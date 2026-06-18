@@ -248,9 +248,22 @@ collect_basics() {
     warn "端口必须是 1-65535 的数字。"
   done
 
-  read -r -p "是否创建一个普通 sudo 用户？请输入用户名，留空则跳过: " NEW_USER
+  if ask_yes_no "是否创建一个普通 sudo 用户？" "y"; then
+    while true; do
+      read -r -p "请输入用户名，例如 admin 或 deploy；不要输入 Y/N；留空则不创建: " NEW_USER
+      if [[ -z "$NEW_USER" ]]; then
+        warn "已选择不创建普通用户。"
+        break
+      fi
+      if [[ "$NEW_USER" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]]; then
+        break
+      fi
+      warn "用户名格式不合法: $NEW_USER"
+      log "用户名需要以小写字母或下划线开头，只能包含小写字母、数字、下划线、短横线，末尾可带 $。"
+    done
+  fi
+
   if [[ -n "$NEW_USER" ]]; then
-    [[ "$NEW_USER" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] || die "用户名格式不合法: $NEW_USER"
     cat <<EOF
 
 你可以现在粘贴 SSH 公钥，脚本会写入 /home/$NEW_USER/.ssh/authorized_keys。
