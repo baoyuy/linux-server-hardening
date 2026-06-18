@@ -16,6 +16,12 @@ The project provides one Bash entrypoint:
 sudo ./harden.sh
 ```
 
+It also provides one helper script for the user's local computer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/get-ssh-key.py | python3 -
+```
+
 The script covers:
 
 - Reinstall/DD warning and reference commands only.
@@ -31,6 +37,7 @@ The script covers:
 - UTC timezone and Chrony with Cloudflare NTP.
 - nftables firewall rules.
 - Fail2ban for SSH.
+- Local SSH public key lookup/generation for Windows, macOS, and Linux.
 
 ## Safety Model
 
@@ -44,6 +51,8 @@ Every module explains:
 - What the user must check first.
 
 High-risk modules require typed confirmation phrases. Configuration files are copied to a timestamped backup directory before being changed.
+
+The local SSH key helper is designed for one-line use. It reads existing public keys first, generates a new `id_ed25519` key only when needed, prints the public key, and does not leave a downloaded script file behind.
 
 ## Deliberate Limits
 
