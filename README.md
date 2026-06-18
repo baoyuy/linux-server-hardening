@@ -22,24 +22,46 @@
 
 ## 快速使用
 
-推荐先下载再运行，不建议第一次就 `curl | bash`：
+很多刚重装的最小系统没有 `curl` 和 `sudo`。如果你的命令行前面是 `root@...#`，说明你已经是 root，不需要写 `sudo`。
+
+### 你现在是 root
 
 ```bash
+apt-get update
+apt-get install -y ca-certificates curl
 curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh
 chmod +x harden.sh
-sudo ./harden.sh
+bash ./harden.sh
 ```
 
 只看流程、不改系统：
 
 ```bash
-sudo ./harden.sh --dry-run
+bash ./harden.sh --dry-run
 ```
 
 指定 SSH 端口：
 
 ```bash
-sudo ./harden.sh --ssh-port 22122
+bash ./harden.sh --ssh-port 22122
+```
+
+### 你是普通用户
+
+如果你的命令行前面是 `$`，通常说明你不是 root，需要使用 `sudo`：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh
+chmod +x harden.sh
+sudo bash ./harden.sh
+```
+
+如果系统提示 `sudo: command not found`，请先切换到 root：
+
+```bash
+su -
 ```
 
 ## 包含哪些步骤
