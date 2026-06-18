@@ -14,6 +14,16 @@ ok() { printf '%s[OK]%s %s\n' "$GREEN" "$RESET" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$YELLOW" "$RESET" "$*"; }
 die() { printf '%s[ERROR]%s %s\n' "$RED" "$RESET" "$*" >&2; exit 1; }
 
+read_from_tty() {
+  local __var="$1"
+  local __prompt="$2"
+  if [[ -r /dev/tty ]]; then
+    IFS= read -r -p "$__prompt" "$__var" < /dev/tty
+  else
+    die "当前环境没有可交互终端。请下载脚本后运行，或使用 --user 和 --key 参数。"
+  fi
+}
+
 usage() {
   cat <<'USAGE'
 给服务器用户添加 SSH 公钥
@@ -87,7 +97,7 @@ prompt_target_user() {
   fi
 
   while true; do
-    read -r -p "你现在是 root。请输入要给哪个用户添加公钥，例如 y 或 admin: " TARGET_USER
+    read_from_tty TARGET_USER "你现在是 root。请输入要给哪个用户添加公钥，例如 y 或 admin: "
     if validate_username "$TARGET_USER"; then
       break
     fi
@@ -111,7 +121,7 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... your-computer
 EOF
 
   while true; do
-    read -r -p "SSH 公钥: " SSH_KEY
+    read_from_tty SSH_KEY "SSH 公钥: "
     if validate_ssh_key "$SSH_KEY"; then
       break
     fi

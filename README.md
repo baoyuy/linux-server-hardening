@@ -78,7 +78,7 @@ irm https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8be5f2a82
 这一步在服务器上运行。它会把新电脑的 SSH 公钥追加到目标用户的 `authorized_keys`，不会覆盖已有公钥。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/add-ssh-key.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/add-ssh-key.sh)
 ```
 
 如果你是 root 登录，脚本会问你要给哪个用户添加；如果你是普通用户登录，默认给当前用户添加。添加前会自动备份原来的 `authorized_keys`。
