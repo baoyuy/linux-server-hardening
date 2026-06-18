@@ -28,6 +28,12 @@ It also provides one helper script for the user's local computer:
 curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8be5f2a828d9dbaf790581ac0a2c88a7700c5/get-ssh-key.py | python3 -
 ```
 
+It also provides a server-side SSH key append helper:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/add-ssh-key.sh | bash
+```
+
 The script covers:
 
 - Reinstall target selection with Ubuntu 24.04 LTS minimal as the default recommendation.
@@ -48,6 +54,7 @@ The script covers:
 - nftables firewall rules.
 - Fail2ban for SSH.
 - Local SSH public key lookup/generation for Windows, macOS, and Linux.
+- Server-side SSH public key appending with backup and permission repair.
 
 ## Safety Model
 
@@ -65,6 +72,8 @@ High-risk modules require typed confirmation phrases. Configuration files are co
 The local SSH key helper is designed for one-line use. It reads existing public keys first, generates a new `id_ed25519` key only when needed, prints the public key, and does not leave a downloaded script file behind.
 
 The helper prints ASCII English messages by default so that Windows PowerShell code pages do not corrupt Chinese text.
+
+The server-side key append helper targets the current login user by default, asks for a username when running as root, validates the pasted public key, backs up `authorized_keys`, avoids duplicate keys, and repairs `.ssh` permissions.
 
 ## Deliberate Limits
 

@@ -73,6 +73,16 @@ irm https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8be5f2a82
 
 这条命令会先检查本机有没有 SSH 公钥；有就直接显示，没有就新生成一个 `id_ed25519`。它不会留下临时脚本文件；如果新生成了 SSH 密钥，密钥本身会保留，因为以后登录服务器还要用。它不会偷偷清理你的终端历史记录。这里使用固定版本链接，避免 GitHub raw 的 `main` 缓存导致 Windows 继续拿到旧版乱码脚本。
 
+## 给服务器添加新的电脑公钥
+
+这一步在服务器上运行。它会把新电脑的 SSH 公钥追加到目标用户的 `authorized_keys`，不会覆盖已有公钥。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/add-ssh-key.sh | bash
+```
+
+如果你是 root 登录，脚本会问你要给哪个用户添加；如果你是普通用户登录，默认给当前用户添加。添加前会自动备份原来的 `authorized_keys`。
+
 ### 只在当前系统开荒，不重装
 
 ```bash
