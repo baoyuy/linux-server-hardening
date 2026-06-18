@@ -19,7 +19,7 @@ sudo ./harden.sh
 It also provides one helper script for the user's local computer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/get-ssh-key.py | python3 -
+curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8be5f2a828d9dbaf790581ac0a2c88a7700c5/get-ssh-key.py | python3 -
 ```
 
 The script covers:

@@ -31,16 +31,16 @@
 Linux/macOS：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/get-ssh-key.py | python3 -
+curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8be5f2a828d9dbaf790581ac0a2c88a7700c5/get-ssh-key.py | python3 -
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/get-ssh-key.py | py -X utf8 -
+irm https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8be5f2a828d9dbaf790581ac0a2c88a7700c5/get-ssh-key.py | py -X utf8 -
 ```
 
-这条命令会先检查本机有没有 SSH 公钥；有就直接显示，没有就新生成一个 `id_ed25519`。它不会留下临时脚本文件；如果新生成了 SSH 密钥，密钥本身会保留，因为以后登录服务器还要用。它不会偷偷清理你的终端历史记录。Windows 版输出默认使用英文，避免 PowerShell 编码导致中文变成问号。
+这条命令会先检查本机有没有 SSH 公钥；有就直接显示，没有就新生成一个 `id_ed25519`。它不会留下临时脚本文件；如果新生成了 SSH 密钥，密钥本身会保留，因为以后登录服务器还要用。它不会偷偷清理你的终端历史记录。这里使用固定版本链接，避免 GitHub raw 的 `main` 缓存导致 Windows 继续拿到旧版乱码脚本。
 
 ### 你现在是 root
 
