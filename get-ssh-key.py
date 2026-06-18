@@ -35,7 +35,7 @@ PREFERRED_PUBLIC_KEYS = (
 
 
 def fail(message: str) -> None:
-    print(f"[错误] {message}", file=sys.stderr)
+    print(f"[ERROR] {message}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -95,12 +95,12 @@ def run_ssh_keygen(args: list[str]) -> subprocess.CompletedProcess[str]:
         system_name = platform.system()
         if system_name == "Windows":
             fail(
-                "没有找到 ssh-keygen。请先安装 Windows 的 OpenSSH Client，"
-                "然后重新运行这条命令。"
+                "ssh-keygen was not found. Install Windows OpenSSH Client, "
+                "then run this command again."
             )
         if system_name == "Darwin":
-            fail("没有找到 ssh-keygen。macOS 正常自带它，请确认系统 PATH 是否异常。")
-        fail("没有找到 ssh-keygen。请先安装 openssh-client，然后重新运行。")
+            fail("ssh-keygen was not found. macOS normally includes it. Check your PATH.")
+        fail("ssh-keygen was not found. Install openssh-client, then run this command again.")
 
     try:
         return subprocess.run(
@@ -112,7 +112,7 @@ def run_ssh_keygen(args: list[str]) -> subprocess.CompletedProcess[str]:
         )
     except subprocess.CalledProcessError as exc:
         details = exc.stderr.strip() or exc.stdout.strip() or str(exc)
-        fail(f"ssh-keygen 执行失败:\n{details}")
+        fail(f"ssh-keygen failed:\n{details}")
 
 
 def derive_public_key(private_key: Path, public_key: Path) -> tuple[Path, str] | None:
@@ -129,7 +129,7 @@ def derive_public_key(private_key: Path, public_key: Path) -> tuple[Path, str] |
         if os.name != "nt":
             public_key.chmod(0o644)
     except OSError as exc:
-        fail(f"无法写入公钥文件: {public_key}\n原因: {exc}")
+        fail(f"Could not write public key file: {public_key}\nReason: {exc}")
 
     return public_key, key
 
@@ -143,8 +143,8 @@ def generate_ed25519_key(ssh_dir: Path) -> tuple[Path, str]:
         if derived:
             return derived
         fail(
-            f"已存在私钥但没有可用公钥，脚本不会覆盖它: {private_key}\n"
-            "请手动检查这个文件，或先备份后再处理。"
+            f"A private key already exists, but no usable public key was found: {private_key}\n"
+            "This script will not overwrite it. Check it manually, or back it up first."
         )
 
     comment = f"{getpass.getuser()}@{socket.gethostname()}"
@@ -159,7 +159,7 @@ def generate_ed25519_key(ssh_dir: Path) -> tuple[Path, str]:
 
     key = read_public_key(public_key)
     if not key:
-        fail(f"已生成密钥，但无法读取公钥: {public_key}")
+        fail(f"The key was generated, but the public key could not be read: {public_key}")
 
     return public_key, key
 
@@ -177,13 +177,14 @@ def main() -> None:
         public_key_path, public_key = generate_ed25519_key(ssh_dir)
         created = True
 
-    action = "已新生成 SSH 公钥" if created else "已找到已有 SSH 公钥"
+    action = "Created a new SSH public key" if created else "Found an existing SSH public key"
     print(action)
-    print(f"公钥位置: {public_key_path}")
+    print(f"Public key file: {public_key_path}")
     if created:
-        print("注意: 新生成的 SSH 私钥和公钥会保留在你的电脑上，这是以后登录服务器必须用的。")
+        print("Note: the new SSH private/public key files are kept on this computer.")
+        print("You need them for future SSH login.")
     print()
-    print("复制下面这一整行，粘贴到服务器开荒脚本的 SSH 公钥输入处:")
+    print("Copy the full line below into the server hardening script when it asks for SSH public key:")
     print(public_key)
 
 

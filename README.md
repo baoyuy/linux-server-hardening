@@ -37,10 +37,10 @@ curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/get-ssh-key.py | py -
+irm https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/get-ssh-key.py | py -X utf8 -
 ```
 
-这条命令会先检查本机有没有 SSH 公钥；有就直接显示，没有就新生成一个 `id_ed25519`。它不会留下临时脚本文件；如果新生成了 SSH 密钥，密钥本身会保留，因为以后登录服务器还要用。它不会偷偷清理你的终端历史记录。
+这条命令会先检查本机有没有 SSH 公钥；有就直接显示，没有就新生成一个 `id_ed25519`。它不会留下临时脚本文件；如果新生成了 SSH 密钥，密钥本身会保留，因为以后登录服务器还要用。它不会偷偷清理你的终端历史记录。Windows 版输出默认使用英文，避免 PowerShell 编码导致中文变成问号。
 
 ### 你现在是 root
 

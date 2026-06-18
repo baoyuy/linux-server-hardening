@@ -54,6 +54,8 @@ High-risk modules require typed confirmation phrases. Configuration files are co
 
 The local SSH key helper is designed for one-line use. It reads existing public keys first, generates a new `id_ed25519` key only when needed, prints the public key, and does not leave a downloaded script file behind.
 
+The helper prints ASCII English messages by default so that Windows PowerShell code pages do not corrupt Chinese text.
+
 ## Deliberate Limits
 
 IPv6 static routes are not written automatically because gateway details vary by provider. The script inspects and explains instead.
