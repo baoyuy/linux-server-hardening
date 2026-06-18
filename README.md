@@ -5,7 +5,7 @@
 本项目按 LINUX DO 帖子《个人向 Linux 服务器开荒/加固指南》的步骤组织，把高风险命令做成可读、可跳过、可确认的向导。
 
 原帖：
-<https://linux.do/t/topic/1549495?u=y0816>
+<https://linux.do/t/topic/1549495>
 
 ## 适用场景
 

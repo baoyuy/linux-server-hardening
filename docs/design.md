@@ -4,7 +4,7 @@
 
 Build a beginner-friendly, interactive Linux server bootstrap and hardening script based on the LINUX DO guide:
 
-<https://linux.do/t/topic/1549495?u=y0816>
+<https://linux.do/t/topic/1549495>
 
 The script should let a novice understand each hardening step before running it.
 
