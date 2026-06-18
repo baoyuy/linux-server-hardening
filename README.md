@@ -83,6 +83,16 @@ bash <(curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardenin
 
 如果你是 root 登录，脚本会问你要给哪个用户添加；如果你是普通用户登录，默认给当前用户添加。添加前会自动备份原来的 `authorized_keys`。
 
+## 删除服务器上的某个公钥
+
+这一步在服务器上运行。它会列出当前用户的公钥，让你输入编号选择删除。通过本项目添加的新公钥会显示准确添加时间；历史公钥只能显示 `authorized_keys` 文件时间。
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/remove-ssh-key.sh)
+```
+
+删除前会自动备份 `authorized_keys`。如果只剩最后一个公钥，会要求输入确认短语，避免误删导致无法登录。
+
 ### 只在当前系统开荒，不重装
 
 ```bash

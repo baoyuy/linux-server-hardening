@@ -175,6 +175,10 @@ main() {
     ok "这个公钥已经存在，不重复添加。"
   else
     cp -a "$auth_file" "$backup_file"
+    if [[ -s "$auth_file" ]] && [[ "$(tail -c 1 "$auth_file")" != "" ]]; then
+      printf '\n' >> "$auth_file"
+    fi
+    printf '# added-by linux-server-hardening at %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" >> "$auth_file"
     printf '%s\n' "$SSH_KEY" >> "$auth_file"
     chown "$TARGET_USER:$primary_group" "$auth_file"
     chmod 600 "$auth_file"

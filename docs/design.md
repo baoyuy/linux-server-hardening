@@ -31,7 +31,13 @@ curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8b
 It also provides a server-side SSH key append helper:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/add-ssh-key.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/add-ssh-key.sh)
+```
+
+It also provides a server-side SSH key removal helper:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/remove-ssh-key.sh)
 ```
 
 The script covers:
@@ -55,6 +61,7 @@ The script covers:
 - Fail2ban for SSH.
 - Local SSH public key lookup/generation for Windows, macOS, and Linux.
 - Server-side SSH public key appending with backup and permission repair.
+- Server-side SSH public key removal with interactive selection, backup, and last-key confirmation.
 
 ## Safety Model
 
@@ -74,6 +81,8 @@ The local SSH key helper is designed for one-line use. It reads existing public 
 The helper prints ASCII English messages by default so that Windows PowerShell code pages do not corrupt Chinese text.
 
 The server-side key append helper targets the current login user by default, asks for a username when running as root, validates the pasted public key, backs up `authorized_keys`, avoids duplicate keys, and repairs `.ssh` permissions.
+
+The key removal helper lists keys from `authorized_keys`. Keys added by this project include a timestamp comment, so the helper can show an exact added time. Existing historical keys do not contain per-line timestamps, so the helper shows the file modification time and labels it as historical.
 
 ## Deliberate Limits
 
