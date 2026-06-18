@@ -10,7 +10,13 @@ The script should let a novice understand each hardening step before running it.
 
 ## Scope
 
-The project provides one Bash entrypoint:
+The project provides a primary Bash entrypoint for reinstall plus hardening:
+
+```bash
+bash ./reinstall-and-harden.sh
+```
+
+It also keeps a hardening-only Bash entrypoint:
 
 ```bash
 sudo ./harden.sh
@@ -24,7 +30,11 @@ curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8b
 
 The script covers:
 
-- Reinstall/DD warning and reference commands only.
+- Reinstall target selection with Ubuntu 24.04 LTS minimal as the default recommendation.
+- Destructive reinstall confirmation.
+- `bin456789/reinstall` integration with `--cloud-data`.
+- First-boot hardening through cloud-init.
+- `--dry-run` preview mode for the reinstall entrypoint.
 - Sudo user creation and optional SSH public key setup.
 - SSH hardening.
 - IPv6 route inspection.

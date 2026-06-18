@@ -9,7 +9,8 @@
 
 ## 适用场景
 
-- 新买的 Debian 系 VPS 初始化。
+- 新买的 VPS 一键重装 Linux，并在新系统首次启动后自动开荒加固。
+- 默认推荐重装 Ubuntu 24.04 LTS minimal。
 - 想按帖子做 SSH、Nginx、ZRAM、Swap、Chrony、nftables、Fail2ban 等基础加固。
 - 你是新手，需要每一步都解释“做什么、为什么、会有什么后果”。
 
@@ -21,6 +22,36 @@
 - 非 Debian/Ubuntu 系统。
 
 ## 快速使用
+
+### 一键重装 + 开荒加固
+
+这是推荐入口。它会先显示可重装系统表，默认推荐 Ubuntu 24.04 LTS minimal。
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/reinstall-and-harden.sh
+chmod +x reinstall-and-harden.sh
+bash ./reinstall-and-harden.sh
+```
+
+执行前必须知道：这会清空当前系统盘。
+
+只预览流程和将要执行的重装命令，不真正清盘：
+
+```bash
+bash ./reinstall-and-harden.sh --dry-run
+```
+
+如果当前系统没有 `curl`，可以先按你的系统安装：
+
+```bash
+apt-get update && apt-get install -y ca-certificates curl
+```
+
+或：
+
+```bash
+dnf install -y ca-certificates curl
+```
 
 很多刚重装的最小系统没有 `curl` 和 `sudo`。如果你的命令行前面是 `root@...#`，说明你已经是 root，不需要写 `sudo`。
 
@@ -42,7 +73,7 @@ irm https://raw.githubusercontent.com/baoyuy/linux-server-hardening/4fd8be5f2a82
 
 这条命令会先检查本机有没有 SSH 公钥；有就直接显示，没有就新生成一个 `id_ed25519`。它不会留下临时脚本文件；如果新生成了 SSH 密钥，密钥本身会保留，因为以后登录服务器还要用。它不会偷偷清理你的终端历史记录。这里使用固定版本链接，避免 GitHub raw 的 `main` 缓存导致 Windows 继续拿到旧版乱码脚本。
 
-### 你现在是 root
+### 只在当前系统开荒，不重装
 
 ```bash
 apt-get update
@@ -64,7 +95,7 @@ bash ./harden.sh --dry-run
 bash ./harden.sh --ssh-port 22122
 ```
 
-### 你是普通用户
+### 普通用户运行当前系统开荒
 
 如果你的命令行前面是 `$`，通常说明你不是 root，需要使用 `sudo`：
 
@@ -84,21 +115,20 @@ su -
 
 ## 包含哪些步骤
 
-脚本菜单按教程顺序组织：
+重装入口会先列出可选目标系统，默认推荐 Ubuntu 24.04 LTS minimal。确认后清空系统盘并重装。新系统首次启动后，自动按顺序执行：
 
-1. 重装系统提示：说明自定义 ISO、`bin456789/reinstall`、`bohanyang/debi`，不自动 DD。
-2. 创建普通 sudo 用户：可写入 SSH 公钥。
+1. 安装基础工具。
+2. 创建普通 sudo 用户并写入 SSH 公钥。
 3. SSH 加固：改端口，禁 root 登录，禁密码登录，禁空密码，禁键盘交互认证，保留公钥登录。
 4. IPv6 静态路由检查：只检查和提示，不硬编码不同厂商的 IPv6 网关。
-5. Debian cloud 内核：安装 `linux-image-cloud-amd64`。
-6. 基础工具：安装 curl、wget、sudo、git、jq、nftables 等。
-7. Docker：安装 Docker 官方源版本。
-8. Nginx fallback：未知域名 HTTP/HTTPS 返回 `444`，使用自签 fallback 证书。
-9. ZRAM/Swap：配置 `systemd-zram-generator`、`/swapfile`、`vm.swappiness=180`。
-10. SSD Trim：启用 `fstrim.timer`。
-11. 时间同步：设置 UTC，安装 Chrony，使用 Cloudflare NTP。
-12. nftables：默认拒绝入站，只放行 SSH；80/443 只允许 Cloudflare IP 回源；保留 Docker forward 基础规则。
-13. Fail2ban：保护 SSH，10 分钟内失败 3 次封 1 天，动作使用 nftables。
+5. Debian cloud 内核：仅 Debian 执行，Ubuntu 和其它系统跳过。
+6. Docker：Debian/Ubuntu 走官方源，其它系统暂时跳过。
+7. Nginx fallback：未知域名 HTTP/HTTPS 返回 `444`，使用自签 fallback 证书。
+8. ZRAM/Swap：配置 `systemd-zram-generator`、`/swapfile`、`vm.swappiness=180`。
+9. SSD Trim：启用 `fstrim.timer`。
+10. 时间同步：设置 UTC，安装 Chrony，使用 Cloudflare NTP。
+11. nftables：默认拒绝入站，只放行 SSH；80/443 只允许 Cloudflare IP 回源；保留 Docker forward 基础规则。
+12. Fail2ban：保护 SSH，10 分钟内失败 3 次封 1 天，动作使用 nftables。
 
 ## 新手安全设计
 

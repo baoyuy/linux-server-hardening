@@ -7,10 +7,16 @@ BACKUP_ROOT="/root/linux-hardening-backup-$(date +%Y%m%d-%H%M%S)"
 SUMMARY_FILE="/tmp/linux-hardening-summary-$$.log"
 DRY_RUN=0
 ASSUME_YES=0
+AUTO_CONFIRM=0
+MENU_MODE=0
+NON_INTERACTIVE=0
+CONFIG_FILE=""
 SSH_PORT="$DEFAULT_SSH_PORT"
 NEW_USER=""
 NEW_USER_PUBKEY=""
 ENABLE_CLOUDFLARE_WEB=1
+PKG_MANAGER=""
+SUDO_GROUP="sudo"
 
 RED=$'\033[31m'
 GREEN=$'\033[32m'
@@ -31,11 +37,15 @@ Linux 服务器开荒/加固交互式脚本
 
 用法:
   sudo bash harden.sh
+  sudo bash harden.sh --one-shot --config /root/linux-hardening.env
   sudo bash harden.sh --dry-run
 
 参数:
   --dry-run      只展示会执行的命令，不修改系统
   --yes          降低普通步骤确认频率；危险步骤仍需确认短语
+  --one-shot     按顺序执行开荒加固，不显示主菜单
+  --menu         显示旧版菜单模式
+  --config PATH  读取重装后自动开荒配置
   --ssh-port N   设置默认 SSH 端口，默认 22122
   -h, --help     显示帮助
 USAGE
@@ -45,6 +55,13 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --yes) ASSUME_YES=1; shift ;;
+    --one-shot) NON_INTERACTIVE=1; ASSUME_YES=1; AUTO_CONFIRM=1; shift ;;
+    --menu) MENU_MODE=1; shift ;;
+    --config)
+      [[ $# -ge 2 ]] || die "--config 需要文件路径"
+      CONFIG_FILE="$2"
+      shift 2
+      ;;
     --ssh-port)
       [[ $# -ge 2 ]] || die "--ssh-port 需要端口号"
       SSH_PORT="$2"
@@ -54,6 +71,16 @@ while [[ $# -gt 0 ]]; do
     *) die "未知参数: $1" ;;
   esac
 done
+
+if [[ -n "$CONFIG_FILE" ]]; then
+  [[ -r "$CONFIG_FILE" ]] || die "无法读取配置文件: $CONFIG_FILE"
+  # shellcheck disable=SC1090
+  . "$CONFIG_FILE"
+  SSH_PORT="${LH_SSH_PORT:-$SSH_PORT}"
+  NEW_USER="${LH_NEW_USER:-$NEW_USER}"
+  NEW_USER_PUBKEY="${LH_NEW_USER_PUBKEY:-$NEW_USER_PUBKEY}"
+  ENABLE_CLOUDFLARE_WEB="${LH_ENABLE_CLOUDFLARE_WEB:-$ENABLE_CLOUDFLARE_WEB}"
+fi
 
 run() {
   if [[ "$DRY_RUN" == "1" ]]; then
@@ -84,9 +111,27 @@ detect_os() {
   OS_ID="${ID:-unknown}"
   OS_VERSION_ID="${VERSION_ID:-unknown}"
   OS_CODENAME="${VERSION_CODENAME:-}"
-  if [[ "$OS_ID" != "debian" && "$OS_ID" != "ubuntu" ]]; then
-    warn "本脚本按教程面向 Debian 系；当前系统是 $OS_ID $OS_VERSION_ID，后续步骤可能不适配。"
+  if command -v apt-get >/dev/null 2>&1; then
+    PKG_MANAGER="apt"
+  elif command -v dnf >/dev/null 2>&1; then
+    PKG_MANAGER="dnf"
+  elif command -v yum >/dev/null 2>&1; then
+    PKG_MANAGER="yum"
+  elif command -v pacman >/dev/null 2>&1; then
+    PKG_MANAGER="pacman"
+  elif command -v apk >/dev/null 2>&1; then
+    PKG_MANAGER="apk"
+  else
+    PKG_MANAGER="unknown"
   fi
+  if getent group sudo >/dev/null 2>&1; then
+    SUDO_GROUP="sudo"
+  elif getent group wheel >/dev/null 2>&1; then
+    SUDO_GROUP="wheel"
+  else
+    SUDO_GROUP="sudo"
+  fi
+  info "检测到系统: $OS_ID $OS_VERSION_ID，包管理器: $PKG_MANAGER"
 }
 
 validate_port() {
@@ -124,6 +169,7 @@ append_summary() {
 }
 
 pause_enter() {
+  [[ "$NON_INTERACTIVE" == "1" ]] && return
   [[ "$ASSUME_YES" == "1" ]] && return
   read -r -p "按 Enter 继续..."
 }
@@ -151,6 +197,7 @@ ask_yes_no() {
 
 confirm_phrase() {
   local phrase="$1"
+  [[ "$AUTO_CONFIRM" == "1" ]] && return 0
   local input
   read -r -p "请输入确认短语「$phrase」: " input
   [[ "$input" == "$phrase" ]]
@@ -185,8 +232,52 @@ EOF
 
 install_packages() {
   local packages=("$@")
-  run apt-get update
-  run env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
+  local mapped=()
+  local pkg
+  case "$PKG_MANAGER" in
+    apt)
+      run apt-get update
+      run env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
+      ;;
+    dnf|yum)
+      for pkg in "${packages[@]}"; do
+        case "$pkg" in
+          gnupg) mapped+=("gnupg2") ;;
+          lsb-release) ;;
+          dnsutils) mapped+=("bind-utils") ;;
+          systemd-zram-generator) mapped+=("zram-generator") ;;
+          docker-ce|docker-ce-cli|containerd.io|docker-buildx-plugin|docker-compose-plugin) ;;
+          *) mapped+=("$pkg") ;;
+        esac
+      done
+      ((${#mapped[@]} > 0)) && run "$PKG_MANAGER" install -y "${mapped[@]}"
+      ;;
+    pacman)
+      for pkg in "${packages[@]}"; do
+        case "$pkg" in
+          ca-certificates) mapped+=("ca-certificates") ;;
+          dnsutils) mapped+=("bind") ;;
+          net-tools) mapped+=("net-tools") ;;
+          systemd-zram-generator) mapped+=("zram-generator") ;;
+          *) mapped+=("$pkg") ;;
+        esac
+      done
+      run pacman -Sy --noconfirm "${mapped[@]}"
+      ;;
+    apk)
+      for pkg in "${packages[@]}"; do
+        case "$pkg" in
+          dnsutils) mapped+=("bind-tools") ;;
+          systemd-zram-generator|fail2ban) ;;
+          *) mapped+=("$pkg") ;;
+        esac
+      done
+      ((${#mapped[@]} > 0)) && run apk add --no-cache "${mapped[@]}"
+      ;;
+    *)
+      die "不支持的包管理器，无法安装软件包。"
+      ;;
+  esac
 }
 
 write_file() {
@@ -238,6 +329,7 @@ EOF
 }
 
 collect_basics() {
+  [[ "$NON_INTERACTIVE" == "1" ]] && return
   section "基础输入"
   while true; do
     read -r -p "请输入你想使用的 SSH 端口 [默认 $SSH_PORT]: " input_port
@@ -328,16 +420,21 @@ setup_user() {
   if id "$NEW_USER" >/dev/null 2>&1; then
     warn "用户 $NEW_USER 已存在，跳过 useradd。"
   else
-    run adduser --disabled-password --gecos "" "$NEW_USER"
+    if [[ "$PKG_MANAGER" == "apt" ]] && command -v adduser >/dev/null 2>&1; then
+      run adduser --disabled-password --gecos "" "$NEW_USER"
+    else
+      run useradd -m -s /bin/bash "$NEW_USER"
+    fi
   fi
-  run usermod -aG sudo "$NEW_USER"
+  run usermod -aG "$SUDO_GROUP" "$NEW_USER"
 
   if [[ -n "$NEW_USER_PUBKEY" ]]; then
     if [[ ! "$NEW_USER_PUBKEY" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-) ]]; then
       warn "公钥格式看起来不标准，仍会按你的输入写入。"
     fi
     local home_dir
-    home_dir="$(getent passwd "$NEW_USER" | cut -d: -f6)"
+    home_dir="$(getent passwd "$NEW_USER" 2>/dev/null | cut -d: -f6 || true)"
+    [[ -n "$home_dir" ]] || home_dir="/home/$NEW_USER"
     run mkdir -p "$home_dir/.ssh"
     if [[ "$DRY_RUN" == "1" ]]; then
       info "将写入 $home_dir/.ssh/authorized_keys"
@@ -454,6 +551,12 @@ install_docker() {
     "确认你确实需要 Docker；如果已有 Docker，本步骤可能升级相关组件。"
 
   ask_yes_no "继续安装 Docker 吗？" "y" || { append_summary "跳过 Docker 安装。"; return; }
+
+  if [[ "$PKG_MANAGER" != "apt" ]]; then
+    warn "Docker 官方源自动配置目前只完整支持 Debian/Ubuntu，当前系统跳过 Docker。"
+    append_summary "跳过 Docker：当前包管理器 $PKG_MANAGER 未完整适配官方 Docker 源。"
+    return
+  fi
 
   run install -m 0755 -d /etc/apt/keyrings
   if [[ "$DRY_RUN" == "1" ]]; then
@@ -603,6 +706,12 @@ setup_chrony() {
   ask_yes_no "继续配置 UTC + Chrony 吗？" "y" || { append_summary "跳过 Chrony。"; return; }
   run timedatectl set-timezone UTC
   install_packages chrony
+  local chrony_conf="/etc/chrony/chrony.conf"
+  local chrony_service="chrony"
+  if [[ "$PKG_MANAGER" == "dnf" || "$PKG_MANAGER" == "yum" ]]; then
+    chrony_conf="/etc/chrony.conf"
+    chrony_service="chronyd"
+  fi
   local chrony_content
   chrony_content="$(cat <<'EOF'
 pool time.cloudflare.com iburst
@@ -615,9 +724,9 @@ leapsectz right/UTC
 logdir /var/log/chrony
 EOF
 )"
-  write_file "/etc/chrony/chrony.conf" "0644" "root:root" "$chrony_content"
-  run systemctl enable --now chrony
-  run systemctl restart chrony
+  write_file "$chrony_conf" "0644" "root:root" "$chrony_content"
+  run systemctl enable --now "$chrony_service"
+  run systemctl restart "$chrony_service"
   append_summary "已设置 UTC 时区并配置 Chrony 使用 Cloudflare NTP。"
 }
 
@@ -732,6 +841,9 @@ setup_fail2ban() {
     "确认 SSH 端口正确；确认日志路径为常见 Debian/Ubuntu SSH 日志。"
 
   ask_yes_no "继续安装并配置 Fail2ban 吗？" "y" || { append_summary "跳过 Fail2ban。"; return; }
+  if [[ "$PKG_MANAGER" == "dnf" || "$PKG_MANAGER" == "yum" ]]; then
+    warn "RHEL/Fedora 系可能需要先启用 EPEL 才能安装 Fail2ban；如果安装失败，请重装后手动处理。"
+  fi
   install_packages fail2ban
   local jail_content
   jail_content="$(cat <<EOF
@@ -753,6 +865,21 @@ EOF
   run systemctl enable --now fail2ban
   run systemctl restart fail2ban
   append_summary "已配置 Fail2ban 保护 SSH，maxretry=3，findtime=10m，bantime=1d。"
+}
+
+run_all_steps() {
+  install_basic_tools
+  setup_user
+  setup_ssh
+  setup_ipv6_route
+  install_cloud_kernel
+  install_docker
+  install_nginx_fallback
+  setup_memory
+  setup_fstrim
+  setup_chrony
+  setup_nftables
+  setup_fail2ban
 }
 
 final_report() {
@@ -843,7 +970,11 @@ main() {
   : > "$SUMMARY_FILE"
   show_intro
   collect_basics
-  main_menu
+  if [[ "$MENU_MODE" == "1" ]]; then
+    main_menu
+  else
+    run_all_steps
+  fi
   final_report
 }
 
