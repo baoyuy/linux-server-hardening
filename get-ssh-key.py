@@ -80,7 +80,7 @@ def ensure_ssh_dir(ssh_dir: Path) -> None:
     try:
         ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     except OSError as exc:
-        fail(f"无法创建 SSH 目录: {ssh_dir}\n原因: {exc}")
+        fail(f"Could not create SSH directory: {ssh_dir}\nReason: {exc}")
 
     if os.name != "nt":
         try:
