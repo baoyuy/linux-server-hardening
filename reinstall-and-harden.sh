@@ -248,11 +248,27 @@ ${RED}${BOLD}危险确认${RESET}
 2. 服务商控制台/VNC/救援模式可用。
 3. 服务商防火墙/安全组已放行新 SSH 端口 $SSH_PORT。
 EOF
+  ask_yes_no "确认继续并在完成准备后自动重启进入重装吗？" "n" || die "已取消。"
+}
 
-  local phrase="我确认清空并重装"
-  local input
-  read -r -p "请输入确认短语「$phrase」: " input
-  [[ "$input" == "$phrase" ]] || die "确认短语不匹配，已取消。"
+reboot_into_installer() {
+  local seconds=5
+  printf '\n'
+  warn "将在 ${seconds} 秒后自动重启进入重装环境。按 Ctrl+C 可以取消。"
+  while ((seconds > 0)); do
+    printf '  %s...\n' "$seconds"
+    sleep 1
+    ((seconds--))
+  done
+
+  info "开始重启。"
+  if command -v reboot >/dev/null 2>&1; then
+    reboot
+  fi
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl reboot
+  fi
+  die "自动重启失败。请立即手动执行: sudo reboot"
 }
 
 run_reinstall() {
@@ -286,6 +302,7 @@ run_reinstall() {
   fi
 
   "${section_cmd[@]}"
+  reboot_into_installer
 }
 
 main() {
