@@ -73,8 +73,10 @@ sudo apt-get update
 sudo apt-get install -y ca-certificates curl
 curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh
 chmod +x harden.sh
-sudo bash ./harden.sh
+bash ./harden.sh
 ```
+
+如果你当前登录的是普通用户，只要它有 `sudo` 权限，`harden.sh` 会自动尝试提权。
 
 如果系统提示 `sudo: command not found`，先切到 root，再安装 `sudo` 或直接用 root 执行第 2 步命令。
 
@@ -140,17 +142,17 @@ bash ./harden.sh --ssh-port 22122
 
 ### 普通用户运行当前系统开荒
 
-如果你的命令行前面是 `$`，通常说明你不是 root，需要使用 `sudo`：
+如果你的命令行前面是 `$`，通常说明你不是 root。只要当前用户有 `sudo` 权限，也可以直接运行：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
 curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh
 chmod +x harden.sh
-sudo bash ./harden.sh
+bash ./harden.sh
 ```
 
-如果系统提示 `sudo: command not found`，请先切换到 root：
+脚本会自动尝试 `sudo` 提权。如果系统提示 `sudo: command not found`，请先切换到 root：
 
 ```bash
 su -
@@ -191,8 +193,8 @@ su -
 
 高风险步骤需要确认短语：
 
-- SSH 加固：`我确认SSH密钥可用`
-- nftables 防火墙：`我确认防火墙规则`
+- SSH 加固：改成 `y/N` 确认
+- nftables 防火墙：改成 `y/N` 确认
 
 所有配置文件修改前会备份到：
 

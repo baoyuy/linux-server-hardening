@@ -19,7 +19,7 @@ bash ./reinstall-and-harden.sh
 It also keeps a hardening-only Bash entrypoint:
 
 ```bash
-sudo ./harden.sh
+bash ./harden.sh
 ```
 
 It also provides one helper script for the user's local computer:

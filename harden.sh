@@ -17,6 +17,8 @@ NEW_USER_PUBKEY=""
 ENABLE_CLOUDFLARE_WEB=1
 PKG_MANAGER=""
 SUDO_GROUP="sudo"
+ORIGINAL_ARGS=("$@")
+SCRIPT_PATH="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
 
 RED=$'\033[31m'
 GREEN=$'\033[32m'
@@ -36,13 +38,13 @@ usage() {
 Linux 服务器开荒/加固交互式脚本
 
 用法:
-  sudo bash harden.sh
-  sudo bash harden.sh --one-shot --config /root/linux-hardening.env
-  sudo bash harden.sh --dry-run
+  bash harden.sh
+  bash harden.sh --one-shot --config /root/linux-hardening.env
+  bash harden.sh --dry-run
 
 参数:
   --dry-run      只展示会执行的命令，不修改系统
-  --yes          降低普通步骤确认频率；危险步骤仍需确认短语
+  --yes          降低普通步骤确认频率；危险步骤默认继续
   --one-shot     按顺序执行开荒加固，不显示主菜单
   --menu         显示旧版菜单模式
   --config PATH  读取重装后自动开荒配置
@@ -101,7 +103,29 @@ run_bash() {
 }
 
 need_root() {
-  [[ "${EUID:-$(id -u)}" -eq 0 ]] || die "请用 root 运行，例如: sudo bash harden.sh"
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    return
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    die "当前用户不是 root，且系统没有 sudo。请换成 root 或有 sudo 权限的用户运行。"
+  fi
+
+  if sudo -n true 2>/dev/null; then
+    info "检测到当前用户不是 root，使用免密 sudo 自动提权。"
+    exec sudo bash "$SCRIPT_PATH" "${ORIGINAL_ARGS[@]}"
+  fi
+
+  if [[ ! -t 0 ]]; then
+    die "当前会话不是交互终端，无法弹出 sudo 密码提示。请直接运行: sudo bash $(printf '%q' "$SCRIPT_PATH") ${ORIGINAL_ARGS[*]}"
+  fi
+
+  info "检测到当前用户不是 root，尝试使用 sudo 自动提权。"
+  if sudo -v; then
+    exec sudo bash "$SCRIPT_PATH" "${ORIGINAL_ARGS[@]}"
+  fi
+
+  die "sudo 提权失败。请确认当前用户拥有 sudo 权限，或改用 root/服务商控制台处理。"
 }
 
 detect_os() {
@@ -195,12 +219,12 @@ ask_yes_no() {
   done
 }
 
-confirm_phrase() {
-  local phrase="$1"
-  [[ "$AUTO_CONFIRM" == "1" ]] && return 0
-  local input
-  read -r -p "请输入确认短语「$phrase」: " input
-  [[ "$input" == "$phrase" ]]
+confirm_danger() {
+  local prompt="$1"
+  if [[ "$AUTO_CONFIRM" == "1" || "$ASSUME_YES" == "1" ]]; then
+    return 0
+  fi
+  ask_yes_no "$prompt" "n"
 }
 
 section() {
@@ -307,7 +331,9 @@ service_restart_or_reload() {
 }
 
 show_intro() {
-  clear || true
+  if [[ -t 1 ]] && command -v clear >/dev/null 2>&1; then
+    clear || true
+  fi
   cat <<EOF
 ${BOLD}Linux 服务器开荒/加固新手向导${RESET}
 
@@ -467,8 +493,8 @@ KbdInteractiveAuthentication no
 PubkeyAuthentication yes
 EOF
 
-  if ! confirm_phrase "我确认SSH密钥可用"; then
-    warn "确认短语不匹配，跳过 SSH 加固。"
+  if ! confirm_danger "我已经确认 SSH 密钥、普通用户和端口放行都没问题，继续 SSH 加固吗？"; then
+    warn "已取消 SSH 加固。"
     append_summary "跳过 SSH 加固。"
     return
   fi
@@ -775,8 +801,8 @@ setup_nftables() {
     ask_yes_no "仍然继续写入教程风格 nftables 配置吗？" "n" || { append_summary "跳过 nftables：未启用 Cloudflare 回源模式。"; return; }
   fi
 
-  if ! confirm_phrase "我确认防火墙规则"; then
-    warn "确认短语不匹配，跳过 nftables。"
+  if ! confirm_danger "我已经确认防火墙规则不会挡住自己或业务，继续写入 nftables 吗？"; then
+    warn "已取消 nftables。"
     append_summary "跳过 nftables。"
     return
   fi
