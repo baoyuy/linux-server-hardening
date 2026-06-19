@@ -1006,6 +1006,10 @@ EOF
   run nft -c -f /etc/nftables.conf
   run systemctl enable nftables
   run systemctl restart nftables
+  if systemctl list-unit-files docker.service >/dev/null 2>&1 || systemctl status docker >/dev/null 2>&1; then
+    info "检测到 Docker 已安装；重启 Docker 以重建被 nftables 刷新的 DOCKER-FORWARD 等链。"
+    run systemctl restart docker
+  fi
   append_summary "已启用 nftables：默认拒绝入站，SSH $SSH_PORT，80/443 仅 Cloudflare。"
 }
 
