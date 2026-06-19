@@ -2,14 +2,12 @@
 set -Eeuo pipefail
 
 REINSTALL_URL="https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh"
-HARDEN_URL="https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh"
 WORK_DIR="/root/linux-reinstall-hardening"
 REINSTALL_SH="$WORK_DIR/reinstall.sh"
-CLOUD_DIR="$WORK_DIR/cloud-data"
-HARDEN_LOCAL="$WORK_DIR/harden.sh"
 DEFAULT_SSH_PORT="22122"
 DRY_RUN=0
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+TARGET_LABEL="Ubuntu 24.04 LTS minimal"
+TARGET_ARGS="ubuntu 24.04 --minimal"
 
 RED=$'\033[31m'
 GREEN=$'\033[32m'
@@ -26,14 +24,14 @@ die() { printf '%s[ERROR]%s %s\n' "$RED" "$RESET" "$*" >&2; exit 1; }
 
 usage() {
   cat <<'USAGE'
-Linux 一键重装 + 开荒加固向导
+Linux 两步式 Ubuntu 重装向导
 
 用法:
   bash reinstall-and-harden.sh
   bash reinstall-and-harden.sh --dry-run
 
 参数:
-  --dry-run   只生成配置并打印重装命令，不执行清盘重装
+  --dry-run   只打印重装命令和第二步指引，不执行清盘重装
   -h, --help  显示帮助
 USAGE
 }
@@ -119,23 +117,22 @@ download_file() {
   fi
 }
 
-shell_quote() {
-  printf '%q' "$1"
-}
-
 show_intro() {
-  clear || true
+  if [[ -t 1 ]] && command -v clear >/dev/null 2>&1; then
+    clear || true
+  fi
   cat <<EOF
-${BOLD}Linux 一键重装 + 开荒加固向导${RESET}
+${BOLD}Linux 两步式 Ubuntu 重装向导${RESET}
 
-这个脚本会做两件事：
-1. 调用 bin456789/reinstall 清空系统盘并重装你选择的 Linux 系统。
-2. 通过 cloud-init 安排新系统首次启动后自动执行开荒加固。
+这个脚本现在只负责第 1 步：
+1. 调用 bin456789/reinstall 清空系统盘并重装 ${TARGET_LABEL}。
+2. 重装完成后，你再登录新系统，手动执行第 2 步开荒加固。
 
 重要后果：
 - 当前系统盘会被清空，数据会丢失。
 - 当前 SSH 会断开，重装期间只能看服务商 VNC/控制台或安装日志端口。
-- 新系统会使用你输入的 SSH 端口和 SSH 公钥。
+- 新系统会使用你输入的 SSH 端口、普通用户和 SSH 公钥。
+- 重装完成后，系统里暂时没有 Docker、Git 等开荒软件包，这是正常现象。
 
 如果你还没有 SSH 公钥，请先在自己电脑运行：
 Windows PowerShell:
@@ -145,60 +142,13 @@ Linux/macOS:
 EOF
 }
 
-choose_target_os() {
-  local default_choice=1
-  OS_LABELS=(
-    "Ubuntu 24.04 LTS minimal"
-    "Ubuntu 22.04 LTS minimal"
-    "Ubuntu 20.04 LTS minimal"
-    "Debian 13 cloud image"
-    "Debian 12 cloud image"
-    "Rocky Linux 9 cloud image"
-    "AlmaLinux 9 cloud image"
-    "Fedora 44 cloud image"
-  )
-  OS_NOTES=(
-    "推荐；默认选择；完整开荒适配"
-    "老机器兼容性更保守；完整开荒适配"
-    "更老的 LTS；完整开荒适配"
-    "教程原始方向；完整开荒适配"
-    "Debian 稳定旧版本；完整开荒适配"
-    "RHEL 系；基础加固适配，Docker/Fail2ban 可能需手动补"
-    "RHEL 系；基础加固适配，Docker/Fail2ban 可能需手动补"
-    "较新；基础加固适配，不推荐新手"
-  )
-  OS_ARGS=(
-    "ubuntu 24.04 --minimal --ci"
-    "ubuntu 22.04 --minimal --ci"
-    "ubuntu 20.04 --minimal --ci"
-    "debian 13 --ci"
-    "debian 12 --ci"
-    "rocky 9"
-    "almalinux 9"
-    "fedora 44"
-  )
-
-  printf '\n%s可重装系统列表%s\n' "$BOLD" "$RESET"
-  printf '%-4s %-30s %s\n' "编号" "系统" "说明"
-  printf '%-4s %-30s %s\n' "----" "------------------------------" "------------------------------"
-  local i
-  for i in "${!OS_LABELS[@]}"; do
-    printf '%-4s %-30s %s\n' "$((i + 1))" "${OS_LABELS[$i]}" "${OS_NOTES[$i]}"
-  done
-
-  local choice
-  while true; do
-    read -r -p "请选择要重装的系统编号 [默认 $default_choice]: " choice
-    choice="${choice:-$default_choice}"
-    if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#OS_LABELS[@]})); then
-      TARGET_INDEX=$((choice - 1))
-      TARGET_LABEL="${OS_LABELS[$TARGET_INDEX]}"
-      TARGET_ARGS="${OS_ARGS[$TARGET_INDEX]}"
-      ok "你选择的是: $TARGET_LABEL"
-      break
-    fi
-    warn "请输入 1-${#OS_LABELS[@]} 之间的编号。"
-  done
+show_target_os() {
+  printf '\n%s本脚本当前只支持%s\n' "$BOLD" "$RESET"
+  printf '  %s\n' "$TARGET_LABEL"
+  printf '\n原因:\n'
+  printf '  - 之前的自动首启开荒链路不可靠，已改成两步流程。\n'
+  printf '  - Ubuntu 24.04 LTS 是当前默认维护目标。\n'
+  ok "重装目标固定为: $TARGET_LABEL"
 }
 
 collect_inputs() {
@@ -234,50 +184,31 @@ EOF
   fi
 }
 
-prepare_cloud_data() {
-  install_downloaders
-  rm -rf "$WORK_DIR"
-  mkdir -p "$CLOUD_DIR"
-  chmod 700 "$WORK_DIR"
+show_second_step() {
+  cat <<EOF
 
-  info "下载开荒脚本并嵌入新系统首次启动配置。"
-  if [[ -f "$SCRIPT_DIR/harden.sh" ]]; then
-    cp "$SCRIPT_DIR/harden.sh" "$HARDEN_LOCAL"
-  else
-    download_file "$HARDEN_URL" "$HARDEN_LOCAL"
-  fi
-  chmod 700 "$HARDEN_LOCAL"
+${BOLD}第 2 步：新系统登录后手动执行开荒${RESET}
 
-  local harden_b64
-  harden_b64="$(base64 "$HARDEN_LOCAL" | fold -w 76 | sed 's/^/      /')"
+重装完成后，请用下面的形式登录新系统：
+  ssh -p $SSH_PORT $NEW_USER@服务器IP
 
-  cat > "$CLOUD_DIR/meta-data" <<EOF
-instance-id: linux-reinstall-hardening
-local-hostname: linux-server
+登录成功后执行：
+  sudo apt-get update
+  sudo apt-get install -y ca-certificates curl
+  curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh
+  chmod +x harden.sh
+  sudo bash ./harden.sh
+
+补充说明：
+  - 如果第 2 步运行前没有 git、docker，这是正常的。
+  - harden.sh 里会再次询问防火墙和 Cloudflare 相关选项。
+  - 你刚才对 Cloudflare 的回答是: $( [[ "$CLOUDFLARE_WEB" == "1" ]] && printf '是，网站全部走 Cloudflare' || printf '否，网站不全部走 Cloudflare' )
 EOF
-
-  cat > "$CLOUD_DIR/user-data" <<EOF
-#cloud-config
-write_files:
-  - path: /root/harden.sh.b64
-    permissions: '0600'
-    content: |
-$harden_b64
-  - path: /root/linux-hardening.env
-    permissions: '0600'
-    content: |
-      LH_SSH_PORT=$(shell_quote "$SSH_PORT")
-      LH_NEW_USER=$(shell_quote "$NEW_USER")
-      LH_NEW_USER_PUBKEY=$(shell_quote "$SSH_KEY")
-      LH_ENABLE_CLOUDFLARE_WEB=$(shell_quote "$CLOUDFLARE_WEB")
-runcmd:
-  - [ bash, -lc, "base64 -d /root/harden.sh.b64 > /root/harden.sh && chmod 700 /root/harden.sh && bash /root/harden.sh --one-shot --config /root/linux-hardening.env > /root/linux-hardening-firstboot.log 2>&1" ]
-EOF
-
-  ok "已生成 cloud-init 配置: $CLOUD_DIR"
 }
 
 confirm_destroy() {
+  local cf_label="否"
+  [[ "$CLOUDFLARE_WEB" == "1" ]] && cf_label="是"
   cat <<EOF
 
 ${RED}${BOLD}危险确认${RESET}
@@ -286,7 +217,7 @@ ${RED}${BOLD}危险确认${RESET}
   目标系统: $TARGET_LABEL
   SSH 端口: $SSH_PORT
   普通用户: $NEW_USER
-  Cloudflare 回源限制: $CLOUDFLARE_WEB
+  网站全部走 Cloudflare: $cf_label
 
 这会删除当前系统和磁盘上的数据。确认前请确保：
 1. 重要数据已经备份。
@@ -301,6 +232,7 @@ EOF
 }
 
 run_reinstall() {
+  install_downloaders
   mkdir -p "$WORK_DIR"
   if [[ "$DRY_RUN" != "1" ]]; then
     info "下载 bin456789/reinstall。"
@@ -317,12 +249,12 @@ run_reinstall() {
     --username "$NEW_USER"
     --ssh-key "$SSH_KEY"
     --ssh-port "$SSH_PORT"
-    --cloud-data "$CLOUD_DIR"
   )
 
   printf '\n将执行重装命令:\n'
   printf ' %q' "${section_cmd[@]}"
   printf '\n\n'
+  show_second_step
 
   if [[ "$DRY_RUN" == "1" ]]; then
     warn "dry-run 模式：不会执行清盘重装。"
@@ -335,9 +267,8 @@ run_reinstall() {
 main() {
   need_root
   show_intro
-  choose_target_os
+  show_target_os
   collect_inputs
-  prepare_cloud_data
   confirm_destroy
   run_reinstall
 }

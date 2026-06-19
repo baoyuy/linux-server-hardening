@@ -1,6 +1,6 @@
 # Linux Server Hardening
 
-新手向 Linux 服务器开荒/加固交互式脚本。
+新手向 Ubuntu 服务器重装/开荒交互式脚本。
 
 本项目按 LINUX DO 帖子《个人向 Linux 服务器开荒/加固指南》的步骤组织，把高风险命令做成可读、可跳过、可确认的向导。
 
@@ -9,8 +9,7 @@
 
 ## 适用场景
 
-- 新买的 VPS 一键重装 Linux，并在新系统首次启动后自动开荒加固。
-- 默认推荐重装 Ubuntu 24.04 LTS minimal。
+- 新买的 VPS，先重装 `Ubuntu 24.04 LTS minimal`，再手动执行开荒加固。
 - 想按帖子做 SSH、Nginx、ZRAM、Swap、Chrony、nftables、Fail2ban 等基础加固。
 - 你是新手，需要每一步都解释“做什么、为什么、会有什么后果”。
 
@@ -19,13 +18,11 @@
 - 生产业务已经跑满复杂服务，且你不知道哪些端口必须开放。
 - 网站没有全部通过 Cloudflare，但你仍想直接套用“80/443 只允许 Cloudflare 回源”的防火墙规则。
 - 没有 SSH 密钥登录，也没有服务商 VNC/救援模式入口。
-- 非 Debian/Ubuntu 系统。
+- 非 Ubuntu 24.04 系统。
 
 ## 快速使用
 
-### 一键重装 + 开荒加固
-
-这是推荐入口。它会先显示可重装系统表，默认推荐 Ubuntu 24.04 LTS minimal。
+### 第 1 步：重装 Ubuntu 24.04
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/reinstall-and-harden.sh
@@ -35,7 +32,7 @@ bash ./reinstall-and-harden.sh
 
 执行前必须知道：这会清空当前系统盘。
 
-只预览流程和将要执行的重装命令，不真正清盘：
+只预览流程、重装命令和第 2 步指引，不真正清盘：
 
 ```bash
 bash ./reinstall-and-harden.sh --dry-run
@@ -53,7 +50,29 @@ apt-get update && apt-get install -y ca-certificates curl
 dnf install -y ca-certificates curl
 ```
 
-很多刚重装的最小系统没有 `curl` 和 `sudo`。如果你的命令行前面是 `root@...#`，说明你已经是 root，不需要写 `sudo`。
+这个脚本现在只负责重装，不再依赖 cloud-init 自动首启开荒。
+
+重装完成后，系统里暂时没有 `git`、`docker` 等软件包，这是正常现象。请继续执行第 2 步。
+
+### 第 2 步：登录新系统后执行开荒
+
+先用你在第 1 步里设置的用户名、SSH 端口和公钥登录新系统，例如：
+
+```bash
+ssh -p 22122 y@服务器IP
+```
+
+登录成功后执行：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh
+chmod +x harden.sh
+sudo bash ./harden.sh
+```
+
+如果系统提示 `sudo: command not found`，先切到 root，再安装 `sudo` 或直接用 root 执行第 2 步命令。
 
 ## 获取本机 SSH 公钥
 
@@ -133,16 +152,23 @@ sudo bash ./harden.sh
 su -
 ```
 
-## 包含哪些步骤
+## 两步流程说明
 
-重装入口会先列出可选目标系统，默认推荐 Ubuntu 24.04 LTS minimal。确认后清空系统盘并重装。新系统首次启动后，自动按顺序执行：
+第 1 步 `reinstall-and-harden.sh` 会做：
+
+1. 固定重装 `Ubuntu 24.04 LTS minimal`。
+2. 收集 SSH 端口、普通用户、SSH 公钥等重装信息。
+3. 打印重装命令和第 2 步要执行的准确指引。
+4. 调用重装工具清空系统盘并重装。
+
+第 2 步 `harden.sh` 会按顺序执行：
 
 1. 安装基础工具。
 2. 创建普通 sudo 用户并写入 SSH 公钥。
 3. SSH 加固：改端口，禁 root 登录，禁密码登录，禁空密码，禁键盘交互认证，保留公钥登录。
 4. IPv6 静态路由检查：只检查和提示，不硬编码不同厂商的 IPv6 网关。
-5. Debian cloud 内核：仅 Debian 执行，Ubuntu 和其它系统跳过。
-6. Docker：Debian/Ubuntu 走官方源，其它系统暂时跳过。
+5. Debian cloud 内核：仅 Debian 执行，Ubuntu 会跳过。
+6. Docker：Ubuntu 走官方源安装。
 7. Nginx fallback：未知域名 HTTP/HTTPS 返回 `444`，使用自签 fallback 证书。
 8. ZRAM/Swap：配置 `systemd-zram-generator`、`/swapfile`、`vm.swappiness=180`。
 9. SSD Trim：启用 `fstrim.timer`。
@@ -186,7 +212,7 @@ su -
 
 ## 设计原则
 
-这个脚本不是“静默一键梭哈”，而是“交互式开荒向导”：
+这个项目不是“静默一键梭哈”，而是“两步式重装 + 交互式开荒向导”：
 
 - 能解释清楚的才执行。
 - 危险步骤必须二次确认。

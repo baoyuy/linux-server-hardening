@@ -10,7 +10,7 @@ The script should let a novice understand each hardening step before running it.
 
 ## Scope
 
-The project provides a primary Bash entrypoint for reinstall plus hardening:
+The project provides a primary Bash entrypoint for step 1, reinstall only:
 
 ```bash
 bash ./reinstall-and-harden.sh
@@ -42,10 +42,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/baoyuy/linux-server-hardenin
 
 The script covers:
 
-- Reinstall target selection with Ubuntu 24.04 LTS minimal as the default recommendation.
+- Ubuntu 24.04 LTS minimal as the only supported reinstall target.
 - Destructive reinstall confirmation.
-- `bin456789/reinstall` integration with `--cloud-data`.
-- First-boot hardening through cloud-init.
+- `bin456789/reinstall` integration for OS reinstall only.
+- Printed step-2 instructions for manual post-reinstall hardening.
 - `--dry-run` preview mode for the reinstall entrypoint.
 - Sudo user creation and optional SSH public key setup.
 - SSH hardening.
@@ -88,6 +88,8 @@ The key removal helper lists keys from `authorized_keys`. Keys added by this pro
 
 IPv6 static routes are not written automatically because gateway details vary by provider. The script inspects and explains instead.
 
+Automatic first-boot hardening after Ubuntu reinstall is intentionally not used. The project now relies on a two-step flow because the previous cloud-init based handoff was not reliable in practice.
+
 DD reinstall commands are not executed. The script only shows references and examples because a mistake can wipe the server.
 
 The nftables web rules follow the guide's Cloudflare-only origin model. Users with direct web access or extra public services should skip or adapt that step.
@@ -96,6 +98,7 @@ The nftables web rules follow the guide's Cloudflare-only origin model. Users wi
 
 Validation should include:
 
+- `bash -n reinstall-and-harden.sh`
 - `bash -n harden.sh`
-- `shellcheck harden.sh` when ShellCheck is available.
-- Manual `--dry-run` smoke test on a disposable Debian VPS before real use.
+- `shellcheck` on both scripts when ShellCheck is available.
+- Manual `--dry-run` smoke test on a disposable Ubuntu 24.04 VPS before real use.
