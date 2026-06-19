@@ -19,6 +19,7 @@ PKG_MANAGER=""
 SUDO_GROUP="sudo"
 ORIGINAL_ARGS=("$@")
 SCRIPT_PATH="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
+CURRENT_LOGIN_USER=""
 
 RED=$'\033[31m'
 GREEN=$'\033[32m'
@@ -156,6 +157,26 @@ detect_os() {
     SUDO_GROUP="sudo"
   fi
   info "检测到系统: $OS_ID $OS_VERSION_ID，包管理器: $PKG_MANAGER"
+}
+
+detect_current_ssh_port() {
+  local detected_port=""
+  if command -v sshd >/dev/null 2>&1; then
+    detected_port="$(sshd -T 2>/dev/null | awk '/^port / {print $2; exit}')"
+  fi
+  if validate_port "${detected_port:-}"; then
+    SSH_PORT="$detected_port"
+  fi
+}
+
+detect_current_login_user() {
+  if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+    CURRENT_LOGIN_USER="$SUDO_USER"
+  elif [[ "${USER:-}" != "root" && -n "${USER:-}" ]]; then
+    CURRENT_LOGIN_USER="$USER"
+  else
+    CURRENT_LOGIN_USER=""
+  fi
 }
 
 validate_port() {
@@ -357,20 +378,44 @@ EOF
 collect_basics() {
   [[ "$NON_INTERACTIVE" == "1" ]] && return
   section "基础输入"
-  while true; do
-    read -r -p "请输入你想使用的 SSH 端口 [默认 $SSH_PORT]: " input_port
-    SSH_PORT="${input_port:-$SSH_PORT}"
-    if validate_port "$SSH_PORT"; then
-      break
-    fi
-    warn "端口必须是 1-65535 的数字。"
-  done
-
-  if ask_yes_no "是否创建一个普通 sudo 用户？" "y"; then
+  printf '检测到当前 SSH 端口: %s\n' "$SSH_PORT"
+  if ask_yes_no "是否继续使用当前 SSH 端口 $SSH_PORT？" "y"; then
+    :
+  else
+    local input_port
     while true; do
-      read -r -p "请输入用户名，例如 admin 或 deploy；不要输入 Y/N；留空则不创建: " NEW_USER
+      read -r -p "请输入你想使用的 SSH 端口 [默认 $SSH_PORT]: " input_port
+      SSH_PORT="${input_port:-$SSH_PORT}"
+      if validate_port "$SSH_PORT"; then
+        break
+      fi
+      warn "端口必须是 1-65535 的数字。"
+    done
+  fi
+
+  if [[ -n "$CURRENT_LOGIN_USER" ]]; then
+    printf '检测到当前登录用户: %s\n' "$CURRENT_LOGIN_USER"
+    if ask_yes_no "是否继续使用当前登录用户 $CURRENT_LOGIN_USER 作为日常 sudo 用户？" "y"; then
+      NEW_USER="$CURRENT_LOGIN_USER"
+    else
+      while true; do
+        read -r -p "请输入要维护的普通用户名，例如 admin 或 deploy；留空则跳过: " NEW_USER
+        if [[ -z "$NEW_USER" ]]; then
+          warn "已选择跳过普通用户处理。"
+          break
+        fi
+        if [[ "$NEW_USER" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]]; then
+          break
+        fi
+        warn "用户名格式不合法: $NEW_USER"
+        log "用户名需要以小写字母或下划线开头，只能包含小写字母、数字、下划线、短横线，末尾可带 $。"
+      done
+    fi
+  elif ask_yes_no "是否创建或维护一个普通 sudo 用户？" "y"; then
+    while true; do
+      read -r -p "请输入用户名，例如 admin 或 deploy；留空则跳过: " NEW_USER
       if [[ -z "$NEW_USER" ]]; then
-        warn "已选择不创建普通用户。"
+        warn "已选择跳过普通用户处理。"
         break
       fi
       if [[ "$NEW_USER" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]]; then
@@ -381,11 +426,11 @@ collect_basics() {
     done
   fi
 
-  if [[ -n "$NEW_USER" ]]; then
+  if [[ -n "$NEW_USER" && ( -z "$CURRENT_LOGIN_USER" || "$NEW_USER" != "$CURRENT_LOGIN_USER" ) ]] && ask_yes_no "是否为用户 $NEW_USER 追加新的 SSH 公钥？" "n"; then
     cat <<EOF
 
-你可以现在粘贴 SSH 公钥，脚本会写入 /home/$NEW_USER/.ssh/authorized_keys。
-如果留空，脚本只创建用户，不配置密钥。
+请粘贴要追加到 /home/$NEW_USER/.ssh/authorized_keys 的公钥。
+如果你在第 1 步已经配置过公钥，通常这里不需要重复追加。
 EOF
     read -r -p "SSH 公钥: " NEW_USER_PUBKEY
   fi
@@ -434,16 +479,26 @@ EOF
 
 setup_user() {
   [[ -n "$NEW_USER" ]] || { append_summary "跳过创建普通用户。"; return; }
+  local user_exists=0
+  id "$NEW_USER" >/dev/null 2>&1 && user_exists=1
+  local user_action_text="创建用户 $NEW_USER，加入 sudo 组；如果你提供了 SSH 公钥，会写入 authorized_keys。"
+  local user_impact_text="用户创建后不会删除 root；后续 SSH 加固步骤可能禁止 root 直接登录。"
+  local user_confirm_text="继续处理用户 $NEW_USER 吗？"
+  if ((user_exists == 1)); then
+    user_action_text="确保现有用户 $NEW_USER 保持在 sudo 组；如果你提供了新的 SSH 公钥，会追加到 authorized_keys。"
+    user_impact_text="不会删除现有用户；如果你追加新公钥，旧公钥不会被覆盖。"
+    user_confirm_text="继续检查并维护现有用户 $NEW_USER 吗？"
+  fi
   explain \
-    "[用户] 创建普通 sudo 用户" \
-    "创建用户 $NEW_USER，加入 sudo 组；如果你提供了 SSH 公钥，会写入 authorized_keys。" \
+    "[用户] 维护普通 sudo 用户" \
+    "$user_action_text" \
     "日常用普通用户登录，再通过 sudo 提权，比长期使用 root 更稳妥。" \
-    "用户创建后不会删除 root；后续 SSH 加固步骤可能禁止 root 直接登录。" \
+    "$user_impact_text" \
     "用户名正确；如果粘贴公钥，请确认是以 ssh-ed25519、sk-ssh-ed25519@openssh.com、ecdsa-sha2-、sk-ecdsa-sha2-nistp256@openssh.com 或 ssh-rsa 开头的整行公钥。"
 
-  ask_yes_no "继续创建用户 $NEW_USER 吗？" "y" || { append_summary "跳过创建普通用户。"; return; }
+  ask_yes_no "$user_confirm_text" "y" || { append_summary "跳过普通用户处理。"; return; }
 
-  if id "$NEW_USER" >/dev/null 2>&1; then
+  if ((user_exists == 1)); then
     warn "用户 $NEW_USER 已存在，跳过 useradd。"
   else
     if [[ "$PKG_MANAGER" == "apt" ]] && command -v adduser >/dev/null 2>&1; then
@@ -471,7 +526,7 @@ setup_user() {
       chmod 600 "$home_dir/.ssh/authorized_keys"
     fi
   fi
-  append_summary "已创建/配置普通 sudo 用户: $NEW_USER"
+  append_summary "已检查/配置普通 sudo 用户: $NEW_USER"
 }
 
 setup_ssh() {
@@ -993,6 +1048,8 @@ main_menu() {
 main() {
   need_root
   detect_os
+  detect_current_ssh_port
+  detect_current_login_user
   : > "$SUMMARY_FILE"
   show_intro
   collect_basics

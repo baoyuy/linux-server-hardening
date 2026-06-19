@@ -78,6 +78,8 @@ bash ./harden.sh
 
 如果你当前登录的是普通用户，只要它有 `sudo` 权限，`harden.sh` 会自动尝试提权。
 
+`harden.sh` 会优先检测当前系统里的 SSH 端口和当前登录用户，把它们作为默认值继续使用。只有你明确选择修改时，才会重新输入。第 1 步已经配置过的 SSH 公钥，在第 2 步默认也不会重复询问。
+
 如果系统提示 `sudo: command not found`，先切到 root，再安装 `sudo` 或直接用 root 执行第 2 步命令。
 
 ## 获取本机 SSH 公钥
@@ -169,18 +171,19 @@ su -
 
 第 2 步 `harden.sh` 会按顺序执行：
 
-1. 安装基础工具。
-2. 创建普通 sudo 用户并写入 SSH 公钥。
-3. SSH 加固：改端口，禁 root 登录，禁密码登录，禁空密码，禁键盘交互认证，保留公钥登录。
-4. IPv6 静态路由检查：只检查和提示，不硬编码不同厂商的 IPv6 网关。
-5. Debian cloud 内核：仅 Debian 执行，Ubuntu 会跳过。
-6. Docker：Ubuntu 走官方源安装。
-7. Nginx fallback：未知域名 HTTP/HTTPS 返回 `444`，使用自签 fallback 证书。
-8. ZRAM/Swap：配置 `systemd-zram-generator`、`/swapfile`、`vm.swappiness=180`。
-9. SSD Trim：启用 `fstrim.timer`。
-10. 时间同步：设置 UTC，安装 Chrony，使用 Cloudflare NTP。
-11. nftables：默认拒绝入站，只放行 SSH；80/443 只允许 Cloudflare IP 回源；保留 Docker forward 基础规则。
-12. Fail2ban：保护 SSH，10 分钟内失败 3 次封 1 天，动作使用 nftables。
+1. 检测当前 SSH 端口和当前登录用户，默认沿用现状，避免和第 1 步重复。
+2. 安装基础工具。
+3. 维护普通 sudo 用户；如果你明确提供新公钥，才会追加写入。
+4. SSH 加固：改端口，禁 root 登录，禁密码登录，禁空密码，禁键盘交互认证，保留公钥登录。
+5. IPv6 静态路由检查：只检查和提示，不硬编码不同厂商的 IPv6 网关。
+6. Debian cloud 内核：仅 Debian 执行，Ubuntu 会跳过。
+7. Docker：Ubuntu 走官方源安装。
+8. Nginx fallback：未知域名 HTTP/HTTPS 返回 `444`，使用自签 fallback 证书。
+9. ZRAM/Swap：配置 `systemd-zram-generator`、`/swapfile`、`vm.swappiness=180`。
+10. SSD Trim：启用 `fstrim.timer`。
+11. 时间同步：设置 UTC，安装 Chrony，使用 Cloudflare NTP。
+12. nftables：默认拒绝入站，只放行 SSH；80/443 只允许 Cloudflare IP 回源；保留 Docker forward 基础规则。
+13. Fail2ban：保护 SSH，10 分钟内失败 3 次封 1 天，动作使用 nftables。
 
 ## 新手安全设计
 
