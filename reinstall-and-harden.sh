@@ -8,6 +8,8 @@ DEFAULT_SSH_PORT="22122"
 DRY_RUN=0
 TARGET_LABEL="Ubuntu 24.04 LTS minimal"
 TARGET_ARGS="ubuntu 24.04 --minimal"
+ORIGINAL_ARGS=("$@")
+SCRIPT_PATH="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
 
 RED=$'\033[31m'
 GREEN=$'\033[32m'
@@ -45,7 +47,29 @@ while [[ $# -gt 0 ]]; do
 done
 
 need_root() {
-  [[ "${EUID:-$(id -u)}" -eq 0 ]] || die "请用 root 运行，例如: bash reinstall-and-harden.sh"
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    return
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    die "当前用户不是 root，且系统没有 sudo。请换成 root 或有 sudo 权限的用户运行。"
+  fi
+
+  if sudo -n true 2>/dev/null; then
+    info "检测到当前用户不是 root，使用免密 sudo 自动提权。"
+    exec sudo bash "$SCRIPT_PATH" "${ORIGINAL_ARGS[@]}"
+  fi
+
+  if [[ ! -t 0 ]]; then
+    die "当前会话不是交互终端，无法弹出 sudo 密码提示。请直接运行: sudo bash $(printf '%q' "$SCRIPT_PATH") ${ORIGINAL_ARGS[*]}"
+  fi
+
+  info "检测到当前用户不是 root，尝试使用 sudo 自动提权。"
+  if sudo -v; then
+    exec sudo bash "$SCRIPT_PATH" "${ORIGINAL_ARGS[@]}"
+  fi
+
+  die "sudo 提权失败。请确认当前用户拥有 sudo 权限，或改用 root/服务商控制台处理。"
 }
 
 validate_port() {

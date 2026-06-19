@@ -30,6 +30,8 @@ chmod +x reinstall-and-harden.sh
 bash ./reinstall-and-harden.sh
 ```
 
+如果你当前登录的是普通用户，只要这个用户有 `sudo` 权限，脚本会自动尝试提权后继续运行。
+
 执行前必须知道：这会清空当前系统盘。
 
 只预览流程、重装命令和第 2 步指引，不真正清盘：
