@@ -213,6 +213,11 @@ append_summary() {
   printf '%s\n' "$*" >> "$SUMMARY_FILE"
 }
 
+swap_device_active() {
+  local device="$1"
+  swapon --show=NAME --noheadings 2>/dev/null | awk -v dev="$device" '$1 == dev { found=1 } END { exit found ? 0 : 1 }'
+}
+
 pause_enter() {
   [[ "$NON_INTERACTIVE" == "1" ]] && return
   [[ "$ASSUME_YES" == "1" ]] && return
@@ -761,12 +766,26 @@ EOF
   sysctl_content="$(cat <<'EOF'
 vm.swappiness=180
 EOF
-)"
+  )"
   write_file "/etc/sysctl.d/99-swappiness.conf" "0644" "root:root" "$sysctl_content"
   run sysctl --system
   run systemctl daemon-reload
-  run systemctl restart systemd-zram-setup@zram0.service || true
-  append_summary "已配置 ZRAM、/swapfile 和 vm.swappiness=180。"
+  local zram_active=0
+  if run systemctl restart systemd-zram-setup@zram0.service; then
+    if [[ "$DRY_RUN" == "1" ]] || swap_device_active "/dev/zram0"; then
+      zram_active=1
+    else
+      warn "已写入 ZRAM 配置，但当前没有检测到 /dev/zram0 处于启用状态。"
+    fi
+  else
+    warn "ZRAM 服务启动失败，已继续保留 /swapfile 和 swappiness 配置。"
+  fi
+
+  if (( zram_active == 1 )); then
+    append_summary "已配置 ZRAM、/swapfile 和 vm.swappiness=180。"
+  else
+    append_summary "已配置 /swapfile 和 vm.swappiness=180；ZRAM 配置已写入，但当前未成功启用 zram0。"
+  fi
 }
 
 setup_fstrim() {
