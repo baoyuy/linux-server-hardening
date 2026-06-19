@@ -10,6 +10,7 @@ ASSUME_YES=0
 AUTO_CONFIRM=0
 MENU_MODE=0
 NON_INTERACTIVE=0
+AUTO_FULL=0
 CONFIG_FILE=""
 SSH_PORT="$DEFAULT_SSH_PORT"
 NEW_USER=""
@@ -40,13 +41,15 @@ Linux 服务器开荒/加固交互式脚本
 
 用法:
   bash harden.sh
+  bash harden.sh --auto-full
   bash harden.sh --one-shot --config /root/linux-hardening.env
   bash harden.sh --dry-run
 
 参数:
   --dry-run      只展示会执行的命令，不修改系统
   --yes          降低普通步骤确认频率；危险步骤默认继续
-  --one-shot     按顺序执行开荒加固，不显示主菜单
+  --auto-full    第 2 步全自动完整版：直接执行 SSH、Docker、Nginx、ZRAM、Chrony、nftables、Fail2ban 等全部步骤
+  --one-shot     兼容旧自动化入口；按顺序执行开荒加固，不显示主菜单
   --menu         显示旧版菜单模式
   --config PATH  读取重装后自动开荒配置
   --ssh-port N   设置默认 SSH 端口，默认 22122
@@ -58,6 +61,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --yes) ASSUME_YES=1; shift ;;
+    --auto-full) AUTO_FULL=1; NON_INTERACTIVE=1; ASSUME_YES=1; AUTO_CONFIRM=1; shift ;;
     --one-shot) NON_INTERACTIVE=1; ASSUME_YES=1; AUTO_CONFIRM=1; shift ;;
     --menu) MENU_MODE=1; shift ;;
     --config)
@@ -434,6 +438,7 @@ ${BOLD}Linux 服务器开荒/加固新手向导${RESET}
 
 当前模式:
   dry-run: $DRY_RUN
+  auto-full: $AUTO_FULL
   默认 SSH 端口: $SSH_PORT
 EOF
   pause_enter

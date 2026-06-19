@@ -82,6 +82,36 @@ bash ./harden.sh
 
 如果系统提示 `sudo: command not found`，先切到 root，再安装 `sudo` 或直接用 root 执行第 2 步命令。
 
+### 第 2 步一键全自动完整版
+
+如果你不想一个一个确认，可以直接执行完整第 2 步：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh
+chmod +x harden.sh
+bash ./harden.sh --auto-full
+```
+
+这个模式会直接执行完整开荒，包括：
+
+- SSH 加固
+- Docker
+- Nginx fallback
+- ZRAM/Swap
+- Chrony
+- nftables
+- Fail2ban
+
+它会默认沿用当前检测到的 SSH 端口和当前登录用户，也默认按“网站全部走 Cloudflare”来写 80/443 的防火墙规则。
+
+如果你的网站不是全部走 Cloudflare，或者你不想让脚本直接改 SSH 和防火墙，请使用普通交互模式：
+
+```bash
+bash ./harden.sh
+```
+
 ## 获取本机 SSH 公钥
 
 这一步在你自己的电脑上运行，不是在服务器上运行。
@@ -128,6 +158,12 @@ apt-get install -y ca-certificates curl
 curl -fsSLO https://raw.githubusercontent.com/baoyuy/linux-server-hardening/main/harden.sh
 chmod +x harden.sh
 bash ./harden.sh
+```
+
+当前系统一键全自动完整版：
+
+```bash
+bash ./harden.sh --auto-full
 ```
 
 只看流程、不改系统：
