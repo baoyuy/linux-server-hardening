@@ -218,6 +218,19 @@ swap_device_active() {
   swapon --show=NAME --noheadings 2>/dev/null | awk -v dev="$device" '$1 == dev { found=1 } END { exit found ? 0 : 1 }'
 }
 
+wait_for_swap_device_active() {
+  local device="$1"
+  local attempts="${2:-5}"
+  local i
+  for ((i = 1; i <= attempts; i++)); do
+    if swap_device_active "$device"; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 pause_enter() {
   [[ "$NON_INTERACTIVE" == "1" ]] && return
   [[ "$ASSUME_YES" == "1" ]] && return
@@ -328,6 +341,52 @@ install_packages() {
       die "不支持的包管理器，无法安装软件包。"
       ;;
   esac
+}
+
+apt_package_has_candidate() {
+  local pkg="$1"
+  local candidate=""
+  candidate="$(apt-cache policy "$pkg" 2>/dev/null | awk '/Candidate:/ {print $2; exit}')"
+  [[ -n "$candidate" && "$candidate" != "(none)" ]]
+}
+
+ensure_zram_module_ready() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    info "将检查当前内核是否可加载 zram；若缺少模块，将尝试补齐后再启用 ZRAM。"
+    return 0
+  fi
+
+  if modprobe zram >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local kernel_release repair_pkg
+  kernel_release="$(uname -r)"
+
+  case "$OS_ID:$PKG_MANAGER" in
+    ubuntu:apt)
+      repair_pkg="linux-modules-extra-${kernel_release}"
+      if apt_package_has_candidate "$repair_pkg"; then
+        warn "检测到当前内核缺少 zram 模块，尝试安装 $repair_pkg。"
+        install_packages "$repair_pkg"
+        if modprobe zram >/dev/null 2>&1; then
+          ok "已补齐并加载 zram 模块。"
+          return 0
+        fi
+        warn "已安装 $repair_pkg，但仍无法加载 zram 模块。"
+      else
+        warn "仓库中没有找到与当前内核匹配的 $repair_pkg。"
+      fi
+      ;;
+    debian:apt)
+      warn "Debian 当前没有统一可靠的当前运行内核 zram 模块自动补齐路径，跳过 ZRAM 自动修复。"
+      ;;
+    *)
+      warn "当前系统未适配 zram 模块自动补齐，跳过 ZRAM 自动修复。"
+      ;;
+  esac
+
+  return 1
 }
 
 write_file() {
@@ -770,21 +829,29 @@ EOF
   write_file "/etc/sysctl.d/99-swappiness.conf" "0644" "root:root" "$sysctl_content"
   run sysctl --system
   run systemctl daemon-reload
+  local zram_ready=0
   local zram_active=0
-  if run systemctl restart systemd-zram-setup@zram0.service; then
-    if [[ "$DRY_RUN" == "1" ]] || swap_device_active "/dev/zram0"; then
-      zram_active=1
+  if ensure_zram_module_ready; then
+    zram_ready=1
+    if run systemctl restart systemd-zram-setup@zram0.service; then
+      if [[ "$DRY_RUN" == "1" ]] || wait_for_swap_device_active "/dev/zram0" 5; then
+        zram_active=1
+      else
+        warn "已写入 ZRAM 配置，但当前没有检测到 /dev/zram0 处于启用状态。"
+      fi
     else
-      warn "已写入 ZRAM 配置，但当前没有检测到 /dev/zram0 处于启用状态。"
+      warn "ZRAM 服务启动失败，已继续保留 /swapfile 和 swappiness 配置。"
     fi
   else
-    warn "ZRAM 服务启动失败，已继续保留 /swapfile 和 swappiness 配置。"
+    warn "当前内核缺少或不支持 zram 模块，已跳过 ZRAM，仅保留 /swapfile 和 swappiness 配置。"
   fi
 
   if (( zram_active == 1 )); then
     append_summary "已配置 ZRAM、/swapfile 和 vm.swappiness=180。"
-  else
+  elif (( zram_ready == 1 )); then
     append_summary "已配置 /swapfile 和 vm.swappiness=180；ZRAM 配置已写入，但当前未成功启用 zram0。"
+  else
+    append_summary "已配置 /swapfile 和 vm.swappiness=180；当前内核缺少或不支持 zram 模块，已跳过 ZRAM。"
   fi
 }
 

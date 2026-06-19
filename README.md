@@ -179,7 +179,7 @@ su -
 6. Debian cloud 内核：仅 Debian 执行，Ubuntu 会跳过。
 7. Docker：Ubuntu 走官方源安装。
 8. Nginx fallback：未知域名 HTTP/HTTPS 返回 `444`，使用自签 fallback 证书。
-9. ZRAM/Swap：配置 `systemd-zram-generator`、`/swapfile`、`vm.swappiness=180`。
+9. ZRAM/Swap：配置 `systemd-zram-generator`、`/swapfile`、`vm.swappiness=180`；如果当前 Ubuntu 内核缺少 `zram` 模块，会先尝试补装与当前运行内核匹配的 `linux-modules-extra-$(uname -r)`，补不上就明确跳过 ZRAM，只保留磁盘 swap。
 10. SSD Trim：启用 `fstrim.timer`。
 11. 时间同步：设置 UTC，安装 Chrony，使用 Cloudflare NTP。
 12. nftables：默认拒绝入站，只放行 SSH；80/443 只允许 Cloudflare IP 回源；保留 Docker forward 基础规则。
