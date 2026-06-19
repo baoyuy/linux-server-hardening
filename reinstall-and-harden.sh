@@ -61,7 +61,7 @@ validate_username() {
 }
 
 validate_ssh_key() {
-  [[ "$1" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-) ]]
+  [[ "$1" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)[[:space:]] ]]
 }
 
 ask_yes_no() {
@@ -224,7 +224,7 @@ EOF
   while true; do
     read -r -p "SSH 公钥: " SSH_KEY
     validate_ssh_key "$SSH_KEY" && break
-    warn "公钥格式不对。请粘贴以 ssh-ed25519、ssh-rsa 或 ecdsa-sha2- 开头的整行公钥。"
+    warn "公钥格式不对。请粘贴以 ssh-ed25519、sk-ssh-ed25519@openssh.com、ecdsa-sha2-、sk-ecdsa-sha2-nistp256@openssh.com 或 ssh-rsa 开头的整行公钥。"
   done
 
   if ask_yes_no "你的网站是否全部通过 Cloudflare 访问？防火墙会只允许 Cloudflare 回源 80/443。" "y"; then

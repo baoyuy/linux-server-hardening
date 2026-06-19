@@ -71,7 +71,7 @@ validate_username() {
 
 validate_ssh_key() {
   local key="$1"
-  [[ "$key" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-) ]] || return 1
+  [[ "$key" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)[[:space:]] ]] || return 1
   [[ "$(awk '{print NF}' <<<"$key")" -ge 2 ]] || return 1
 }
 
@@ -125,7 +125,7 @@ EOF
     if validate_ssh_key "$SSH_KEY"; then
       break
     fi
-    warn "公钥格式不对。请粘贴以 ssh-ed25519、ssh-rsa 或 ecdsa-sha2- 开头的整行公钥。"
+    warn "公钥格式不对。请粘贴以 ssh-ed25519、sk-ssh-ed25519@openssh.com、ecdsa-sha2-、sk-ecdsa-sha2-nistp256@openssh.com 或 ssh-rsa 开头的整行公钥。"
   done
 }
 

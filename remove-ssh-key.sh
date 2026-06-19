@@ -83,7 +83,7 @@ validate_username() {
 }
 
 is_key_line() {
-  [[ "$1" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-) ]]
+  [[ "$1" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)[[:space:]] ]]
 }
 
 default_user() {

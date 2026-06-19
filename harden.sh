@@ -413,7 +413,7 @@ setup_user() {
     "创建用户 $NEW_USER，加入 sudo 组；如果你提供了 SSH 公钥，会写入 authorized_keys。" \
     "日常用普通用户登录，再通过 sudo 提权，比长期使用 root 更稳妥。" \
     "用户创建后不会删除 root；后续 SSH 加固步骤可能禁止 root 直接登录。" \
-    "用户名正确；如果粘贴公钥，请确认是以 ssh-ed25519、ssh-rsa 或 ecdsa-sha2 开头的整行公钥。"
+    "用户名正确；如果粘贴公钥，请确认是以 ssh-ed25519、sk-ssh-ed25519@openssh.com、ecdsa-sha2-、sk-ecdsa-sha2-nistp256@openssh.com 或 ssh-rsa 开头的整行公钥。"
 
   ask_yes_no "继续创建用户 $NEW_USER 吗？" "y" || { append_summary "跳过创建普通用户。"; return; }
 
@@ -429,7 +429,7 @@ setup_user() {
   run usermod -aG "$SUDO_GROUP" "$NEW_USER"
 
   if [[ -n "$NEW_USER_PUBKEY" ]]; then
-    if [[ ! "$NEW_USER_PUBKEY" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-) ]]; then
+    if [[ ! "$NEW_USER_PUBKEY" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)[[:space:]] ]]; then
       warn "公钥格式看起来不标准，仍会按你的输入写入。"
     fi
     local home_dir
