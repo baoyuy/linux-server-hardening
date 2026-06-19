@@ -671,6 +671,7 @@ install_nginx_fallback() {
   install_packages nginx openssl
   run mkdir -p /etc/nginx/ssl
   backup_path "/etc/nginx/conf.d/00-default.conf"
+  backup_path "/etc/nginx/sites-enabled/default"
   if [[ "$DRY_RUN" == "1" ]]; then
     info "将生成 /etc/nginx/ssl/deny.pem 和 deny.key"
   else
@@ -690,9 +691,8 @@ server {
 }
 
 server {
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    http2 on;
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
     server_name _;
 
     ssl_certificate /etc/nginx/ssl/deny.pem;
@@ -701,8 +701,13 @@ server {
     return 444;
 }
 EOF
+    if [[ -L /etc/nginx/sites-enabled/default || -f /etc/nginx/sites-enabled/default ]]; then
+      rm -f /etc/nginx/sites-enabled/default
+    fi
   fi
-  run nginx -t
+  if ! run nginx -t; then
+    die "Nginx 配置测试失败。请检查 /etc/nginx/conf.d/00-default.conf 与当前 Nginx 版本的兼容性。"
+  fi
   run systemctl enable --now nginx
   run systemctl reload nginx
   append_summary "已安装 Nginx 并配置 fallback 444。"
